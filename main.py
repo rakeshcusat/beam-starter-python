@@ -8,7 +8,7 @@
 
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from my_app import app
+from stateful_app import app
 
 
 if __name__ == "__main__":
