@@ -6,10 +6,35 @@
 # option. This file may not be copied, modified, or distributed
 # except according to those terms.
 
-from typing import Callable, Optional
+from typing import Callable
+from typing import Optional
+from collections.abc import Generator
+
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
-from collections.abc import Generator
+
+
+BASE_TIMESTAMP = 1746339915
+ONE_MINUTE = 60
+NAME_FIELD = 'name'
+TIMESTAMP_FIELD = 'timestamp'
+
+INPUT_DATA = [
+    {'name': 'data1', 'timestamp': BASE_TIMESTAMP},
+    {'name': 'data2', 'timestamp': BASE_TIMESTAMP},
+    {'name': 'data3', 'timestamp': BASE_TIMESTAMP},
+    {'name': 'data4', 'timestamp': BASE_TIMESTAMP},
+    {'name': 'data5', 'timestamp': BASE_TIMESTAMP},
+    {'name': 'data6', 'timestamp': BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {'name': 'data7', 'timestamp': BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {'name': 'data8', 'timestamp': BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {'name': 'data9', 'timestamp': BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {'name': 'data10', 'timestamp': BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {'name': 'data11', 'timestamp': BASE_TIMESTAMP + 2 * ONE_MINUTE},
+    {'name': 'data12', 'timestamp': BASE_TIMESTAMP + 2 * ONE_MINUTE},
+    {'name': 'data13', 'timestamp': BASE_TIMESTAMP + 2 * ONE_MINUTE},
+]
+
 
 def split_words(input_string_list: str) ->  list[str]:
     result = []
@@ -28,9 +53,10 @@ def run(
     with beam.Pipeline(options=beam_options) as pipeline:
         elements = (
             pipeline
-            | "Create elements" >> beam.Create(['Hello', 'world', input_text])
-            | "Split words" >> beam.FlatMap(split_words)
-            # | "Apply timestamp" >> beam.
+            | "Create elements" >> beam.Create(INPUT_DATA)
+            | 'With timestamps' >> beam.Map(
+            lambda item: beam.window.TimestampedValue(item[NAME_FIELD], 
+                                                      item[TIMESTAMP_FIELD]))
             | "Print elements" >> beam.Map(print)
         )
 
