@@ -60,6 +60,7 @@ INPUT_DATA = [
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data12', TIMESTAMP_FIELD: BASE_TIMESTAMP + 2 * ONE_MINUTE},
 ]
 
+# This is for initializing the colorama to make the output look pretty on command line.
 init(autoreset=True)
 
 
