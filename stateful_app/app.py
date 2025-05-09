@@ -20,6 +20,7 @@ from apache_beam.transforms.core import DoFn
 from apache_beam.transforms import window
 from apache_beam.coders import StrUtf8Coder
 from apache_beam.transforms.userstate import on_timer
+from colorama import Fore, Back, Style, init
 
 
 BASE_TIMESTAMP = int(time.time())
@@ -35,23 +36,44 @@ INPUT_DATA = [
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data3', TIMESTAMP_FIELD: BASE_TIMESTAMP},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data4', TIMESTAMP_FIELD: BASE_TIMESTAMP},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data5', TIMESTAMP_FIELD: BASE_TIMESTAMP},
+
+    # Repeated data
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data2', TIMESTAMP_FIELD: BASE_TIMESTAMP},
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data5', TIMESTAMP_FIELD: BASE_TIMESTAMP},
+
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data6', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data7', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data8', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data9', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data10', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
+
+    # Repeated data
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data6', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data8', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data10', TIMESTAMP_FIELD: BASE_TIMESTAMP + 1 * ONE_MINUTE},
+
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data11', TIMESTAMP_FIELD: BASE_TIMESTAMP + 2 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data12', TIMESTAMP_FIELD: BASE_TIMESTAMP + 2 * ONE_MINUTE},
     {KEY_FIELD: 'key1', VALUE_FIELD: 'data13', TIMESTAMP_FIELD: BASE_TIMESTAMP + 2 * ONE_MINUTE},
+
+    # Repeated data
+    {KEY_FIELD: 'key1', VALUE_FIELD: 'data12', TIMESTAMP_FIELD: BASE_TIMESTAMP + 2 * ONE_MINUTE},
 ]
 
+init(autoreset=True)
 
-class IndexAssigningStatefulDoFn(beam.DoFn):
+
+class DeDuplicateStatefulDoFn(beam.DoFn):
   """
   This is a stateful processing class which is providing an index to each incoming message.
   """
-  BUFFER_STATE = userstate.BagStateSpec(name='buffer', coder=StrUtf8Coder())
+
+  # Create the spec for SetState
+  BUFFER_STATE = userstate.SetStateSpec(name='buffer', coder=StrUtf8Coder())
+
+  # Create a timer spec baesd on the watermark. There are other timer spec available too.
   EXPIRY_TIMER = userstate.TimerSpec(name='expiry_timer', time_domain=TimeDomain.WATERMARK) 
+
 
   def process(self, 
               element: tuple[str, str], 
@@ -60,23 +82,26 @@ class IndexAssigningStatefulDoFn(beam.DoFn):
               window=DoFn.WindowParam,
               ):
     unused_key, value = element
-    current_index = buffer_state
+
+    # Setting the timer to trigger at the end of the window.
     watermark_timer.set(window.end)
+
+    # Add  the value in state so we can retrieve it later.
     buffer_state.add(value)
   
   @on_timer(EXPIRY_TIMER)
   def expiry_callback(self,
                       buffer_state=beam.DoFn.StateParam(BUFFER_STATE)):
-     print("The window end has reached, time to emit the data")
+     print(Fore.BLUE + "Timer: timer callback, time to emit data")
      all_values = buffer_state.read()
      yield all_values
 
 def print_elements(elements):
    """
-   This is an utility function which is mainly used to print elements.
+   This is a utility function which is mainly used to print elements.
    """
-   for item in elements:
-      print(f"ITEM => {item}")
+   print(Fore.GREEN + f"Items: {", ".join(elements)}")
+
 
 def run(
     input_text: str,
@@ -92,7 +117,7 @@ def run(
                                                       timestamp=item[TIMESTAMP_FIELD]))
             | "Add one minute FIXED window" >> beam.WindowInto(window.FixedWindows(ONE_MINUTE))
             | "Set key and value" >> beam.Map(lambda item: (item[KEY_FIELD], item[VALUE_FIELD]))
-            | "Stateful processing" >> beam.ParDo(IndexAssigningStatefulDoFn())                                          
+            | "Stateful processing" >> beam.ParDo(DeDuplicateStatefulDoFn())
             | "Print elements" >> beam.Map(print_elements)
         )
 
