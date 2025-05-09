@@ -65,7 +65,7 @@ init(autoreset=True)
 
 class DeDuplicateStatefulDoFn(beam.DoFn):
   """
-  This is a stateful processing class which is providing an index to each incoming message.
+  This is a stateful processing class which is deduplicating the data for each window.
   """
 
   # Create the spec for SetState
@@ -122,4 +122,4 @@ def run(
         )
 
         # Used for testing only.
-        test(elements)
+        # test(elements)
